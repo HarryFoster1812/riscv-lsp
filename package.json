@@ -1,0 +1,52 @@
+{
+  "name": "risc-v-lsp",
+  "displayName": "RISC-V Assembly Support",
+  "version": "1.0.0",
+  "description": "LSP and language support for RISC-V assembly",
+  "main": "./out/client.js",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onLanguage:riscv"
+  ],
+  "contributes": {
+        "languages": [
+          {
+            "id": "riscv",
+            "aliases": ["RISC-V", "riscv"],
+            "extensions": [".s", ".asm", ".S"]
+          }
+        ],
+        "grammars": [
+          {
+            "language": "riscv",
+            "scopeName": "source.riscv",
+            "path": "./syntaxes/riscv.tmLanguage.json"
+          }
+        ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -b",
+    "watch": "tsc -b -w",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "riscv",
+    "assembly",
+    "lsp"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.5.0"
+  }
+}

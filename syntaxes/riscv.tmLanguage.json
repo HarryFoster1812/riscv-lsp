@@ -1,0 +1,87 @@
+{
+  "name": "RISC-V",
+  "scopeName": "source.riscv",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#labels" },
+    { "include": "#instructions" },
+    { "include": "#registers" },
+    { "include": "#numbers" },
+    { "include": "#operators" },
+    { "include": "#brackets" },
+    { "include": "#variables" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "match": "(#|;).*$",
+          "name": "comment.line.riscv"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "match": "\"(?:[^\"\\\\]|\\\\.)*\"",
+          "name": "string.quoted.double.riscv"
+        },
+        {
+          "match": "'(?:[^'\\\\]|\\\\.)*'",
+          "name": "string.quoted.single.riscv"
+        }
+      ]
+    },
+    "labels": {
+      "patterns": [
+        {
+          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\\s+(defw|defb)\\b",
+          "captures": {
+            "1": { "name": "entity.name.function.riscv" },
+            "2": { "name": "storage.type.riscv" }
+          }
+        },
+        {
+          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*):",
+          "name": "entity.name.function.riscv"
+        },
+        {
+          "match": "^\\s*(?!(?:add|sub|subi|xor|or|and|sll|srl|sra|slt|sltu|addi|xori|ori|andi|slli|srli|srai|slti|sltiu|mul|mulh|mulsu|mulu|div|divu|rem|remu|lb|lh|lw|ld|lbu|lhu|sb|sh|sw|sd|lui|auipc|ecall|ebreak|la|li|mv|not|neg|seqz|snez|sltz|sgtz|blez|bgez|bltz|bgtz|bgt|ble|bgtu|bleu|jr|jalr|ret|nop)\\b)([a-zA-Z_.][a-zA-Z0-9_.]*)\\s*$",
+          "name": "entity.name.function.riscv"
+        },
+        {
+          "match": "\\b(j|jal|beq|bne|blt|bge|bltu|bgeu|call|beqz|bnez|tail|la)\\s+([a-zA-Z_.][a-zA-Z0-9_.]*)",
+          "captures": {
+            "1": { "name": "keyword.control.riscv" },
+            "2": { "name": "entity.name.function.riscv" }
+          }
+        }
+      ]
+    },
+    "instructions": {
+      "match": "\\b(add|sub|subi|xor|or|and|sll|srl|sra|slt|sltu|addi|xori|ori|andi|slli|srli|srai|slti|sltiu|mul|mulh|mulsu|mulu|div|divu|rem|remu|lb|lh|lw|ld|lbu|lhu|sb|sh|sw|sd|lui|auipc|ecall|ebreak|la|li|mv|not|neg|seqz|snez|sltz|sgtz|blez|bgez|bltz|bgtz|bgt|ble|bgtu|bleu|jr|jalr|ret|nop)\\b",
+      "name": "keyword.control.riscv"
+    },
+    "registers": {
+      "match": "\\b(x[0-9]|x[1-2][0-9]|x3[0-1]|zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])\\b",
+      "name": "variable.language.register.riscv"
+    },
+    "numbers": {
+      "match": "\\b-?\\d+\\b|\\b0x[0-9a-fA-F]+\\b",
+      "name": "constant.numeric.riscv"
+    },
+    "operators": {
+      "match": "[-+/*=<>!&|^~%]+",
+      "name": "keyword.operator.riscv"
+    },
+    "brackets": {
+      "match": "[\\(\\)\\[\\]\\{\\}]",
+      "name": "punctuation.section.parens.riscv"
+    },
+    "variables": {
+      "match": "\\b[a-zA-Z_.][a-zA-Z0-9_.]*\\b",
+      "name": "variable.parameter.riscv"
+    }
+  }
+}
