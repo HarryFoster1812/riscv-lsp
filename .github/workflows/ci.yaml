@@ -1,0 +1,37 @@
+name: RISC-V LSP Tests
+
+# 1. When should this run?
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# 2. What should it do?
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest # A fresh, lightweight Linux runner
+
+    steps:
+    # A. Grab your code from the repository
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    # B. Install Node.js
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # Using a stable Long-Term Support version
+        cache: 'npm'       # Speeds up future runs by caching node_modules
+
+    # C. Install your dependencies
+    - name: Install Dependencies
+      run: npm ci
+
+    # D. Compile the TypeScript code
+    - name: Compile TypeScript
+      run: npm run compile
+
+    # E. Run your Jest tests!
+    - name: Run Tests
+      run: npm run test
