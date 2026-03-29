@@ -22,7 +22,8 @@
           ".s",
           ".asm",
           ".S"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
