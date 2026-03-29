@@ -11,26 +11,33 @@
     "onLanguage:riscv"
   ],
   "contributes": {
-        "languages": [
-          {
-            "id": "riscv",
-            "aliases": ["RISC-V", "riscv"],
-            "extensions": [".s", ".asm", ".S"]
-          }
+    "languages": [
+      {
+        "id": "riscv",
+        "aliases": [
+          "RISC-V",
+          "riscv"
         ],
-        "grammars": [
-          {
-            "language": "riscv",
-            "scopeName": "source.riscv",
-            "path": "./syntaxes/riscv.tmLanguage.json"
-          }
+        "extensions": [
+          ".s",
+          ".asm",
+          ".S"
         ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "riscv",
+        "scopeName": "source.riscv",
+        "path": "./syntaxes/riscv.tmLanguage.json"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -b",
     "watch": "tsc -b -w",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "keywords": [
     "riscv",
@@ -45,8 +52,11 @@
     "vscode-languageserver-textdocument": "^1.0.12"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.80.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.5.0"
   }
 }
