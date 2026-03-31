@@ -15,7 +15,7 @@ describe('RISC-V LSP Diagnostics', () => {
             const fileContent = fs.readFileSync(filePath, 'utf-8');
             const fileUri = pathToFileURL(filePath).toString(); 
             
-            const diagnostics = analyzeText(fileContent, fileUri);
+            const { diagnostics } = analyzeText(fileContent, fileUri);
             
             expect(diagnostics.length).toBe(0);
         });
@@ -27,7 +27,7 @@ describe('RISC-V LSP Diagnostics', () => {
             const filePath = path.join(__dirname, 'fixtures', 'failing', 'bad_stack.s');
             const fileContent = fs.readFileSync(filePath, 'utf-8');
             
-            const diagnostics = analyzeText(fileContent);
+            const { diagnostics } = analyzeText(fileContent);
 
             // We expect exactly 2 warnings (1 for offset, 1 for unpopped t0)
             expect(diagnostics.length).toBe(2);

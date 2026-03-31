@@ -1,7 +1,7 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 export interface ParsedInstruction {
     line: number;
     mnemonic: string;
@@ -12,6 +12,12 @@ export interface ParsedInstruction {
 export interface ParsedLabel {
     name: string;
     line: number;
+    uri: string;
+    value?: string;
+}
+export interface AnalysisResult {
+    diagnostics: Diagnostic[];
+    labels: Map<string, ParsedLabel>;
 }
 function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel>, visited: Set<string>) {
     // Prevent infinite loops if files include each other
@@ -23,7 +29,7 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
         const lines = text.split(/\r?\n/);
         
         const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
-        const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs)\s+([^#;]+)/;
+        const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs|equ|EQU)\s+([^#;]+)/;
         const includeRegex = /^\s*include\s+([^\s#;]+)/;
         const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
 
@@ -41,7 +47,14 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
             // 2. Extract Data Directives
             const defMatch = line.match(defDirectiveRegex);
             if (defMatch && !labels.has(defMatch[1])) {
-                labels.set(defMatch[1], { name: defMatch[1], line: -1 }); // line -1 indicates external label
+                const isEqu = defMatch[2].toLowerCase() === 'equ';
+                labels.set(defMatch[1], { 
+                    name: defMatch[1], 
+                    line: lines.indexOf(line), // We need the actual line number for Go-To-Def
+                    uri: pathToFileURL(filePath).toString(), 
+                    value: isEqu ? defMatch[3].trim() : undefined 
+                });
+                continue;
                 continue;
             }
 
@@ -49,7 +62,11 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
             const labelMatch = line.match(labelRegex);
             if (labelMatch && labelMatch[1] && !standaloneMnemonics.includes(labelMatch[1].toLowerCase())) {
                 if (!labels.has(labelMatch[1])) {
-                    labels.set(labelMatch[1], { name: labelMatch[1], line: -1 });
+                    labels.set(labelMatch[1], { 
+                        name: labelMatch[1], 
+                        line: lines.indexOf(line), 
+                        uri: pathToFileURL(filePath).toString() 
+                    });
                 }
             }
         }
@@ -58,7 +75,7 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
     }
 }
 
-export function analyzeText(text: string, documentUri?: string): Diagnostic[] {
+export function analyzeText(text: string, documentUri?: string): AnalysisResult {
     const lines = text.split(/\r?\n/);
     const diagnostics: Diagnostic[] = [];
 
@@ -137,15 +154,16 @@ export function analyzeText(text: string, documentUri?: string): Diagnostic[] {
             const directive = defMatch[2]; 
             const expression = defMatch[3]; 
 
-            if (labels.has(potentialLabel)) {
-                diagnostics.push({
-                    severity: DiagnosticSeverity.Error,
-                    range: { start: { line: i, character: lines[i].indexOf(potentialLabel) }, end: { line: i, character: lines[i].indexOf(potentialLabel) + potentialLabel.length } },
-                    message: `Duplicate label: '${potentialLabel}' has already been defined.`,
-                    source: 'RISC-V LSP'
+            if (!labels.has(potentialLabel)) {
+                const isEqu = directive.toLowerCase() === 'equ';
+                labels.set(potentialLabel, { 
+                    name: potentialLabel, 
+                    line: i, 
+                    uri: documentUri || '', 
+                    value: isEqu ? expression.trim() : undefined 
                 });
             } else {
-                labels.set(potentialLabel, { name: potentialLabel, line: i });
+                labels.set(potentialLabel, { name: potentialLabel, line: i, uri: documentUri || ''  });
             }
 
             const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-fA-F]+\b)|(\b\d+\b)|([a-zA-Z_.][a-zA-Z0-9_.]*)/g;
@@ -176,15 +194,14 @@ export function analyzeText(text: string, documentUri?: string): Diagnostic[] {
         if (labelMatch && labelMatch[1]) {
             const potentialLabel = labelMatch[1];
             if (!standaloneMnemonics.includes(potentialLabel.toLowerCase())) {
-                if (labels.has(potentialLabel)) {
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Error,
-                        range: { start: { line: i, character: lines[i].indexOf(potentialLabel) }, end: { line: i, character: lines[i].indexOf(potentialLabel) + potentialLabel.length } },
-                        message: `Duplicate label: '${potentialLabel}' has already been defined.`,
-                        source: 'RISC-V LSP'
+                if (!labels.has(potentialLabel)) {
+                    labels.set(potentialLabel, { 
+                        name: potentialLabel, 
+                        line: i, 
+                        uri: documentUri || '' 
                     });
                 } else {
-                    labels.set(potentialLabel, { name: potentialLabel, line: i });
+                    labels.set(potentialLabel, { name: potentialLabel, line: i, uri: documentUri || '' });
                 }
                 line = line.substring(labelMatch[0].length); 
             }
@@ -216,7 +233,7 @@ export function analyzeText(text: string, documentUri?: string): Diagnostic[] {
     checkMemoryAlignment(instructions, diagnostics);
     checkLabelResolution(jumpTargets, labels, diagnostics);
 
-    return diagnostics;
+    return { diagnostics, labels };;
 }
 
 function checkStackTracking(instructions: ParsedInstruction[], labels: Map<string, ParsedLabel>, diagnostics: Diagnostic[]) {
