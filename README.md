@@ -1,8 +1,5 @@
 # RISC-V Assembly Language Server & Support
 
-[![CI Status](https://github.com/your-username/your-repo-name/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/your-repo-name/actions)
-[![Marketplace Version](https://vsmarketplacebadge.apphb.com/version/your-publisher-name.risc-v-lsp.svg)](https://marketplace.visualstudio.com/items?itemName=your-publisher-name.risc-v-lsp)
-
 A powerful, custom Language Server Protocol (LSP) and syntax highlighter for RISC-V assembly code (`.s`, `.asm`, `.S`). 
 
 Provides a couple additional features over a standard syntax highlighter. The main features are the tracking of stack usage and label defintions. This was created with the bennett assembler in mind

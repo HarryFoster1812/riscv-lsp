@@ -1,7 +1,7 @@
 {
   "name": "risc-v-lsp",
-  "displayName": "RISC-V Assembly Support",
-  "publisher": "v-stojkovic",
+  "displayName": "RISC-V lsp",
+  "publisher": "VukStojkovic",
   "repository": {
     "type": "git",
     "url": "https://github.com/V-Stojkovic/riscv-lsp"
