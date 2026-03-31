@@ -15,12 +15,12 @@ Provides a couple additional features over a standard syntax highlighter. The ma
   * Warns you on `ret` if the stack pointer is unbalanced or if a specific register was left abandoned on the stack.
 * **Memory Alignment Checks:** Warns you if word (`lw`/`sw`) or half-word (`lh`/`sh`) operations are using 
 
-### Beautiful Syntax Highlighting
+### Syntax Highlighting
 * Full TextMate grammar support for the RISC-V base instruction set and standard pseudoinstructions.
 * **Smart Label Parsing:** Supports both standard GNU syntax (`main:`) and colon-less labels (`main`).
 * Rich coloring for strings (`"text"`), characters (`'A'`), hex literals (`0x1F`), decimals, and hardware registers.
 
-### Custom Hardware Lab Directives
+### Bennett Assembler Directives
 Built-in support for custom data allocation directives:
 * `defw` (Define Word) and `defb` (Define Byte).
 * Full parsing of complex mathematical expressions for data allocation.
