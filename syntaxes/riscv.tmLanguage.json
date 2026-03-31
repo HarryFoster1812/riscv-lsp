@@ -4,6 +4,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#includes" },
     { "include": "#labels" },
     { "include": "#instructions" },
     { "include": "#registers" },
@@ -13,6 +14,13 @@
     { "include": "#variables" }
   ],
   "repository": {
+    "includes":{
+      "match": "^\\s*(include)\\s+([^#;\\s]+)",
+      "captures": {
+        "1": { "name": "keyword.control.import.riscv" },
+        "2": { "name": "string.unquoted.riscv" }
+      }
+    },
     "comments": {
       "patterns": [
         {
@@ -36,7 +44,7 @@
     "labels": {
       "patterns": [
         {
-          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\\s+(defw|defb)\\b",
+          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\\s+(defw|defb|defs)\\b",
           "captures": {
             "1": { "name": "entity.name.function.riscv" },
             "2": { "name": "storage.type.riscv" }

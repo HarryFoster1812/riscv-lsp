@@ -1,5 +1,7 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
-
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 export interface ParsedInstruction {
     line: number;
     mnemonic: string;
@@ -11,24 +13,122 @@ export interface ParsedLabel {
     name: string;
     line: number;
 }
+function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel>, visited: Set<string>) {
+    // Prevent infinite loops if files include each other
+    if (!fs.existsSync(filePath) || visited.has(filePath)) return;
+    visited.add(filePath);
 
-export function analyzeText(text: string): Diagnostic[] {
+    try {
+        const text = fs.readFileSync(filePath, 'utf-8');
+        const lines = text.split(/\r?\n/);
+        
+        const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
+        const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs)\s+([^#;]+)/;
+        const includeRegex = /^\s*include\s+([^\s#;]+)/;
+        const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
+
+        for (const line of lines) {
+            if (!line) continue;
+
+            // 1. Follow nested includes
+            const incMatch = line.match(includeRegex);
+            if (incMatch) {
+                const incPath = path.resolve(path.dirname(filePath), incMatch[1]);
+                extractIncludedLabels(incPath, labels, visited);
+                continue;
+            }
+
+            // 2. Extract Data Directives
+            const defMatch = line.match(defDirectiveRegex);
+            if (defMatch && !labels.has(defMatch[1])) {
+                labels.set(defMatch[1], { name: defMatch[1], line: -1 }); // line -1 indicates external label
+                continue;
+            }
+
+            // 3. Extract Standard Labels
+            const labelMatch = line.match(labelRegex);
+            if (labelMatch && labelMatch[1] && !standaloneMnemonics.includes(labelMatch[1].toLowerCase())) {
+                if (!labels.has(labelMatch[1])) {
+                    labels.set(labelMatch[1], { name: labelMatch[1], line: -1 });
+                }
+            }
+        }
+    } catch (e) {
+        // Silently ignore unreadable files so the LSP doesn't crash
+    }
+}
+
+export function analyzeText(text: string, documentUri?: string): Diagnostic[] {
     const lines = text.split(/\r?\n/);
     const diagnostics: Diagnostic[] = [];
 
     const labels: Map<string, ParsedLabel> = new Map();
     const instructions: ParsedInstruction[] = [];
     const jumpTargets: { label: string, line: number, range: any }[] = [];
+    
+    let baseDir = '';
+    const visitedIncludes = new Set<string>();
+    
+    if (documentUri && documentUri.startsWith('file://')) {
+        try {
+            const basePath = fileURLToPath(documentUri);
+            baseDir = path.dirname(basePath);
+            visitedIncludes.add(basePath); // Add self to prevent self-inclusion
+        } catch (e) {}
+    }
 
     // --- Phase 1: Parsing ---
     const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
     const instRegex = /^\s*([a-zA-Z0-9.]+)(?:\s+([^#;]+))?/; 
-    const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb)\s+([^#;]+)/; 
+    const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs)\s+([^#;]+)/; 
+    const includeRegex = /^\s*include\s+([^\s#;]+)/;
     const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
 
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
         if (line === undefined) continue;
+
+        // --- Process Includes ---
+        const incMatch = line.match(includeRegex);
+        if (incMatch) {
+            const incFile = incMatch[1];
+            const startChar = line.indexOf(incFile);
+            const endChar = startChar + incFile.length;
+            
+            // If the current file hasn't been saved yet, we don't have a working directory
+            if (!baseDir) {
+                diagnostics.push({
+                    severity: DiagnosticSeverity.Warning,
+                    range: {
+                        start: { line: i, character: startChar },
+                        end: { line: i, character: endChar }
+                    },
+                    message: `Cannot resolve relative path: Save this file to disk first.`,
+                    source: 'RISC-V LSP'
+                });
+                continue;
+            }
+
+            // path.resolve automatically handles ../ and ./ syntax
+            const fullPath = path.resolve(baseDir, incFile);
+
+            if (!fs.existsSync(fullPath)) {
+                // File doesn't exist! Throw a red squiggly error.
+                diagnostics.push({
+                    severity: DiagnosticSeverity.Error,
+                    range: {
+                        start: { line: i, character: startChar },
+                        end: { line: i, character: endChar }
+                    },
+                    message: `Included file not found: '${incFile}'`,
+                    source: 'RISC-V LSP'
+                });
+            } else {
+                // File exists, extract its labels!
+                extractIncludedLabels(fullPath, labels, visitedIncludes);
+            }
+            continue;
+        }
 
         // --- 1. Process Custom Data Directives (defw / defb) ---
         const defMatch = line.match(defDirectiveRegex);
@@ -258,7 +358,7 @@ function checkLabelResolution(jumpTargets: { label: string, line: number, range:
             diagnostics.push({
                 severity: DiagnosticSeverity.Error,
                 range: target.range,
-                message: `CUSTOM LSP Undefined label: '${target.label}'`,
+                message: `RISC-V Undefined label: '${target.label}'`,
                 source: 'RISC-V LSP'
             });
         }

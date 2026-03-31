@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 import { analyzeText } from '../src/analyzer';
 import { DiagnosticSeverity } from 'vscode-languageserver/node';
 
@@ -12,10 +13,10 @@ describe('RISC-V LSP Diagnostics', () => {
         test.each(files)('should return 0 diagnostics for %s', (filename) => {
             const filePath = path.join(passingDir, filename);
             const fileContent = fs.readFileSync(filePath, 'utf-8');
+            const fileUri = pathToFileURL(filePath).toString(); 
             
-            const diagnostics = analyzeText(fileContent);
+            const diagnostics = analyzeText(fileContent, fileUri);
             
-            // We expect a completely empty array of errors/warnings
             expect(diagnostics.length).toBe(0);
         });
     });

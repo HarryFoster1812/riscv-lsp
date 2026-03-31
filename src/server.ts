@@ -23,10 +23,9 @@ documents.onDidChangeContent(change => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     const text = textDocument.getText();
     
-    // Hand off the raw text to our analyzer
-    const diagnostics = analyzeText(text);
+    // Pass the URI so the analyzer knows where on the hard drive this file lives
+    const diagnostics = analyzeText(text, textDocument.uri);
     
-    // Send the results back to VS Code
     connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
