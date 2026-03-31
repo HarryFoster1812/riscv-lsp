@@ -2,20 +2,22 @@ import {
     createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, InitializeParams, InitializeResult,
     Hover, MarkupKind, Location, Position
 } from 'vscode-languageserver/node';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { analyzeText, ParsedLabel } from './analyzer';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
-// Global state to hold the latest labels so our hover/click functions can access them
-let latestLabels = new Map<string, ParsedLabel>();
+// SWE Pro-Tip: Map the labels to the specific file URI so multi-tab setups don't overwrite each other!
+const documentLabelsCache = new Map<string, Map<string, ParsedLabel>>();
 
 connection.onInitialize((params: InitializeParams) => {
     const result: InitializeResult = {
         capabilities: {
             textDocumentSync: TextDocumentSyncKind.Incremental,
-            hoverProvider: true,
+            hoverProvider: true,      
             definitionProvider: true  
         }
     };
@@ -28,16 +30,14 @@ documents.onDidChangeContent(change => {
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
     const text = textDocument.getText();
-    
-    // Get both diagnostics and our newly mapped labels
     const result = analyzeText(text, textDocument.uri);
     
-    latestLabels = result.labels; // Save for hovers and clicks
+    // Save the labels specifically for this document URI
+    documentLabelsCache.set(textDocument.uri, result.labels);
     
     connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: result.diagnostics });
 }
 
-// --- HELPER: Find the word under the mouse cursor ---
 function getWordAtPosition(document: TextDocument, position: Position): string | null {
     const text = document.getText();
     const lines = text.split(/\r?\n/);
@@ -62,12 +62,32 @@ connection.onHover((params): Hover | null => {
     const word = getWordAtPosition(document, params.position);
     if (!word) return null;
 
-    const label = latestLabels.get(word);
+    const fileLabels = documentLabelsCache.get(params.textDocument.uri);
+    if (!fileLabels) return null;
+
+    const label = fileLabels.get(word);
     if (label) {
-        // If it's an EQU, show its value. Otherwise, just show that it's a label.
+        // 1. Extract a clean filename from the URI
+        let fileName = 'unsaved file';
+        if (label.uri) {
+            try {
+                // Convert the file:// URI back to a standard hard-drive path
+                const fsPath = fileURLToPath(label.uri);
+                // Extract just the filename (e.g., 'timer_lib.s')
+                fileName = path.basename(fsPath);
+            } catch (e) {
+                // Fallback just in case the URI format is unexpected
+                fileName = label.uri.substring(label.uri.lastIndexOf('/') + 1);
+            }
+        }
+
+        // 2. Convert 0-indexed array line to 1-indexed human line
+        const lineNumber = label.line >= 0 ? label.line + 1 : 'unknown';
+
+        // 3. Construct the beautiful Markdown string
         const markdownText = label.value 
-            ? `\`\`\`riscv\n(constant) ${label.name} EQU ${label.value}\n\`\`\``
-            : `\`\`\`riscv\n(label) ${label.name}\n\`\`\``;
+            ? `\`\`\`riscv\n(constant) ${label.name} EQU ${label.value}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`
+            : `\`\`\`riscv\n(label) ${label.name}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`;
 
         return {
             contents: {
@@ -79,7 +99,7 @@ connection.onHover((params): Hover | null => {
     return null;
 });
 
-// --- FEATURE 2: Go To Definition (Cmd/Ctrl + Click) ---
+// --- FEATURE 2: Go To Definition ---
 connection.onDefinition((params): Location | null => {
     const document = documents.get(params.textDocument.uri);
     if (!document) return null;
@@ -87,7 +107,10 @@ connection.onDefinition((params): Location | null => {
     const word = getWordAtPosition(document, params.position);
     if (!word) return null;
 
-    const label = latestLabels.get(word);
+    const fileLabels = documentLabelsCache.get(params.textDocument.uri);
+    if (!fileLabels) return null;
+
+    const label = fileLabels.get(word);
     if (label && label.uri) {
         return {
             uri: label.uri,

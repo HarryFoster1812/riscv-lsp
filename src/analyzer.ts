@@ -19,6 +19,13 @@ export interface AnalysisResult {
     diagnostics: Diagnostic[];
     labels: Map<string, ParsedLabel>;
 }
+
+const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
+const instRegex = /^\s*([a-zA-Z0-9.]+)(?:\s+([^#;]+))?/; 
+const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs|equ|EQU)\s+([^#;]+)/; 
+const includeRegex = /^\s*include\s+([^\s#;]+)/;
+const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
+
 function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel>, visited: Set<string>) {
     // Prevent infinite loops if files include each other
     if (!fs.existsSync(filePath) || visited.has(filePath)) return;
@@ -27,11 +34,7 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
     try {
         const text = fs.readFileSync(filePath, 'utf-8');
         const lines = text.split(/\r?\n/);
-        
-        const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
-        const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs|equ|EQU)\s+([^#;]+)/;
-        const includeRegex = /^\s*include\s+([^\s#;]+)/;
-        const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
+
 
         for (const line of lines) {
             if (!line) continue;
@@ -54,7 +57,6 @@ function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel
                     uri: pathToFileURL(filePath).toString(), 
                     value: isEqu ? defMatch[3].trim() : undefined 
                 });
-                continue;
                 continue;
             }
 
@@ -93,13 +95,6 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
             visitedIncludes.add(basePath); // Add self to prevent self-inclusion
         } catch (e) {}
     }
-
-    // --- Phase 1: Parsing ---
-    const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
-    const instRegex = /^\s*([a-zA-Z0-9.]+)(?:\s+([^#;]+))?/; 
-    const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs)\s+([^#;]+)/; 
-    const includeRegex = /^\s*include\s+([^\s#;]+)/;
-    const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
 
     for (let i = 0; i < lines.length; i++) {
         let line = lines[i];
@@ -166,7 +161,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                 labels.set(potentialLabel, { name: potentialLabel, line: i, uri: documentUri || ''  });
             }
 
-            const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-fA-F]+\b)|(\b\d+\b)|([a-zA-Z_.][a-zA-Z0-9_.]*)/g;
+            const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-fA-F_]+\b|\$[0-9a-fA-F_]+\b|\b0b[01_]+\b|:[01_]+\b|@[0-7_]+\b)|(\b\d[\d_]*\b)|([a-zA-Z_.][a-zA-Z0-9_.]*)/g;
             let tokenMatch;
             const expressionStartIdx = lines[i].indexOf(expression);
 
@@ -216,13 +211,21 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
             
             instructions.push({ line: i, mnemonic, operands, raw: line });
 
-            const labelReferencingMnemonics = ['jal', 'j', 'beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'call', 'beqz', 'bnez', 'tail', 'la'];
+            const labelReferencingMnemonics = ['jal', 'j', 'beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'call', 'beqz', 'bnez', 'tail', 'la','li'];
             if (labelReferencingMnemonics.includes(mnemonic)) {
                 const targetLabel = operands[operands.length - 1];
-                if (targetLabel && !targetLabel.includes('(')) { 
+                // This regex matches decimal, hex (0x or $), binary (0b or :), and octal (@)
+                const isNumber = /^(0x[0-9a-fA-F_]+|\$[0-9a-fA-F_]+|0b[01_]+|:[01_]+|@[0-7_]+|-?\d[\d_]*)$/i.test(targetLabel);
+                
+                // Only push it as a required label if it is NOT a hardcoded number
+                if (!isNumber) {
                     jumpTargets.push({ 
-                        label: targetLabel, line: i,
-                        range: { start: { line: i, character: lines[i].indexOf(targetLabel) }, end: { line: i, character: lines[i].indexOf(targetLabel) + targetLabel.length } }
+                        label: targetLabel, 
+                        line: i,
+                        range: { 
+                            start: { line: i, character: lines[i].indexOf(targetLabel) }, 
+                            end: { line: i, character: lines[i].indexOf(targetLabel) + targetLabel.length } 
+                        }
                     });
                 }
             }

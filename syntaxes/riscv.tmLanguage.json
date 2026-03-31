@@ -76,7 +76,7 @@
       "name": "variable.language.register.riscv"
     },
     "numbers": {
-      "match": "\\b-?\\d+\\b|\\b0x[0-9a-fA-F]+\\b",
+      "match": "\\b0x[0-9a-fA-F_]+\\b|\\$[0-9a-fA-F_]+\\b|\\b0b[01_]+\\b|:[01_]+\\b|@[0-7_]+\\b|\\b-?\\d[\\d_]*\\b",
       "name": "constant.numeric.riscv"
     },
     "operators": {
