@@ -29,6 +29,7 @@ Built-in support for custom data allocation directives:
 ### Quality of Life
 * **Smart Commenting:** Press `Cmd + /` (Mac) or `Ctrl + /` (Windows) to instantly toggle standard `;` line comments.
 * **Auto-closing:** Automatically pairs brackets `()`, `[]`, `{}`, and quotes.
+* **Go-To-Definition** `Cmd + <click>` (Mac) or `Ctrl + <click>`(Windows) to go to definition of a label
 
 ## Usage
 
