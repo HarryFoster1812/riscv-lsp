@@ -82,12 +82,17 @@ connection.onHover((params): Hover | null => {
         }
 
         // 2. Convert 0-indexed array line to 1-indexed human line
-        const lineNumber = label.line >= 0 ? label.line + 1 : 'unknown';
+        const lineNumber = (label.line !== undefined && label.line >= 0) ? (label.line + 1).toString() : 'unknown';
 
-        // 3. Construct the beautiful Markdown string
-        const markdownText = label.value 
-            ? `\`\`\`riscv\n(constant) ${label.name} EQU ${label.value}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`
-            : `\`\`\`riscv\n(label) ${label.name}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`;
+        // 3. Construct the Markdown string
+        let markdownText = '';
+        if (label.type === 'constant') {
+            markdownText = `\`\`\`riscv\n(constant) ${label.name} EQU ${label.value}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`;
+        } else if (label.type === 'offset') {
+            markdownText = `\`\`\`riscv\n(offset) ${label.name} = ${label.value}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`;
+        } else {
+            markdownText = `\`\`\`riscv\n(label) ${label.name}\n\`\`\`\n*Defined in ${fileName}, line ${lineNumber}*`;
+        }
 
         return {
             contents: {
