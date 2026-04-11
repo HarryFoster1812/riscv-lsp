@@ -5,7 +5,8 @@ import {
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { analyzeText, ParsedLabel } from './analyzer';
+import { analyzeText } from './analyzer';
+import { ParsedLabel} from './types'
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);

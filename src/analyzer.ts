@@ -1,122 +1,17 @@
+// src/analyzer.ts
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver/node';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 
-export interface ParsedInstruction {
-    line: number;
-    mnemonic: string;
-    operands: string[];
-    raw: string;
-}
+// 1. Import our custom modules!
+import { ParsedInstruction, ParsedLabel, AnalysisResult } from './types';
+import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, instRegex, labelReferencingMnemonics, standaloneMnemonics } from './constants';
+import { extractIncludedLabels } from './preprocessor';
+import { checkStackTracking } from './diagnostics/stackTracker';
+import { checkMemoryAlignment } from './diagnostics/memoryAlignment';
+import { checkLabelResolution } from './diagnostics/labelResolver';
 
-export interface ParsedLabel {
-    name: string;
-    line: number;
-    uri: string;
-    value?: string;
-    type: 'label' | 'constant' | 'offset';
-}
-
-export interface AnalysisResult {
-    diagnostics: Diagnostic[];
-    labels: Map<string, ParsedLabel>;
-}
-
-// --- Shared Regexes ---
-const labelRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)(?:\s*:|\s*(?:#|;|$))/;
-const instRegex = /^\s*([a-zA-Z0-9.]+)(?:\s+([^#;]+))?/; 
-const defDirectiveRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+(defw|defb|defs|equ|EQU)\s+([^#;]+)/;
-const includeRegex = /^\s*include\s+([^\s#;]+)/;
-const structRegex = /^\s*(?:[a-zA-Z_.][a-zA-Z0-9_.]*\s*:?\s+)?struct\b/i;
-const structMemberRegex = /^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s*:?\s+(word|alias)\b(?:\s+(\d+))?/i;
-const standaloneMnemonics = ['ret', 'nop', 'ecall', 'ebreak'];
-
-function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel>, visited: Set<string>) {
-    if (!fs.existsSync(filePath) || visited.has(filePath)) return;
-    visited.add(filePath);
-
-    try {
-        const text = fs.readFileSync(filePath, 'utf-8');
-        const lines = text.split(/\r?\n/);
-        
-        let inStruct = false;
-        let currentOffset = 0;
-
-        for (const line of lines) {
-            if (!line) continue;
-
-            // --- 1. Struct State Machine ---
-            if (structRegex.test(line)) {
-                inStruct = true;
-                currentOffset = 0;
-                continue;
-            }
-
-            if (inStruct) {
-                const structMatch = line.match(structMemberRegex);
-                if (structMatch) {
-                    const labelName = structMatch[1];
-                    const dataType = structMatch[2].toLowerCase();
-                    const count = structMatch[3] ? parseInt(structMatch[3], 10) : 1;
-
-                    if (!labels.has(labelName)) {
-                        labels.set(labelName, {
-                            name: labelName,
-                            line: lines.indexOf(line),
-                            uri: pathToFileURL(filePath).toString(),
-                            value: currentOffset.toString(),
-                            type: 'offset'
-                        });
-                    }
-
-                    if (dataType === 'word') currentOffset += count * 4;
-                    continue;
-                } else {
-                    const trimmed = line.trim();
-                    if (trimmed !== '' && !trimmed.startsWith(';') && !trimmed.startsWith('#')) {
-                        inStruct = false;
-                    }
-                }
-            }
-
-            // --- 2. Follow nested includes ---
-            const incMatch = line.match(includeRegex);
-            if (incMatch) {
-                const incPath = path.resolve(path.dirname(filePath), incMatch[1]);
-                extractIncludedLabels(incPath, labels, visited);
-                continue;
-            }
-
-            // --- 3. Extract Data Directives ---
-            const defMatch = line.match(defDirectiveRegex);
-            if (defMatch && !labels.has(defMatch[1])) {
-                const isEqu = defMatch[2].toLowerCase() === 'equ';
-                labels.set(defMatch[1], { 
-                    name: defMatch[1], 
-                    line: lines.indexOf(line), 
-                    uri: pathToFileURL(filePath).toString(), 
-                    value: isEqu ? defMatch[3].trim() : undefined,
-                    type: isEqu ? 'constant' : 'label'
-                });
-                continue;
-            }
-
-            // --- 4. Extract Standard Labels ---
-            const labelMatch = line.match(labelRegex);
-            if (labelMatch && labelMatch[1] && !standaloneMnemonics.includes(labelMatch[1].toLowerCase())) {
-                if (!labels.has(labelMatch[1])) {
-                    labels.set(labelMatch[1], { 
-                        name: labelMatch[1], 
-                        line: lines.indexOf(line), 
-                        uri: pathToFileURL(filePath).toString(),
-                        type: 'label'
-                    });
-                }
-            }
-        }
-    } catch (e) {}
-}
 
 export function analyzeText(text: string, documentUri?: string): AnalysisResult {
     const lines = text.split(/\r?\n/);
@@ -319,117 +214,6 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
     return { diagnostics, labels };
 }
 
-function checkStackTracking(instructions: ParsedInstruction[], labels: Map<string, ParsedLabel>, diagnostics: Diagnostic[]) {
-    let currentStackOffset = 0;
-    const pushedRegisters = new Map<string, number>();
-    const baseRegRegex = /(?:\[|\()(.*?)(?:\]|\))/;
 
-    for (const inst of instructions) {
-        const isAtLabel = Array.from(labels.values()).some(l => l.line === inst.line);
-        if (isAtLabel) {
-            currentStackOffset = 0;
-            pushedRegisters.clear();
-        }
 
-        if ((inst.mnemonic === 'addi' || inst.mnemonic === 'subi') && inst.operands[0] === 'sp' && inst.operands[1] === 'sp') {
-            const immStr = inst.operands[2];
-            if (immStr) {
-                const imm = parseInt(immStr);
-                if (!isNaN(imm)) {
-                    if (inst.mnemonic === 'addi') currentStackOffset += imm;
-                    else if (inst.mnemonic === 'subi') currentStackOffset -= imm;
-                }
-            }
-        }
 
-        const isStore = inst.mnemonic.startsWith('s') && ['sb', 'sh', 'sw', 'sd'].includes(inst.mnemonic);
-        const isLoad = inst.mnemonic.startsWith('l') && ['lb', 'lh', 'lw', 'ld', 'lbu', 'lhu'].includes(inst.mnemonic);
-
-        if (isStore || isLoad) {
-            const targetReg = inst.operands[0];
-            const memOp = inst.operands[inst.operands.length - 1];
-            
-            if (targetReg && memOp) {
-                const match = memOp.match(baseRegRegex);
-                const baseReg = match ? match[1].trim() : null;
-
-                if (baseReg === 'sp' || baseReg === 'x2') {
-                    const currentCount = pushedRegisters.get(targetReg) || 0;
-                    if (isStore) pushedRegisters.set(targetReg, currentCount + 1);
-                    else if (isLoad) pushedRegisters.set(targetReg, currentCount - 1);
-                }
-            }
-        }
-
-        if (inst.mnemonic === 'ret' || (inst.mnemonic === 'jalr' && inst.operands[0] === 'x0' && inst.operands[2] === '0(ra)')) {
-            if (currentStackOffset !== 0) {
-                diagnostics.push({
-                    severity: DiagnosticSeverity.Warning,
-                    range: { start: { line: inst.line, character: 0 }, end: { line: inst.line, character: inst.raw.length } },
-                    message: `Stack pointer mismatch: 'sp' offset is ${currentStackOffset} at return. Did you forget to restore it?`,
-                    source: 'RISC-V LSP'
-                });
-            }
-
-            for (const [reg, count] of pushedRegisters.entries()) {
-                if (count > 0) {
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Warning,
-                        range: { start: { line: inst.line, character: 0 }, end: { line: inst.line, character: inst.raw.length } },
-                        message: `Unbalanced stack: Register '${reg}' was pushed ${count} time(s) but never popped before return.`,
-                        source: 'RISC-V LSP'
-                    });
-                } else if (count < 0) {
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Warning,
-                        range: { start: { line: inst.line, character: 0 }, end: { line: inst.line, character: inst.raw.length } },
-                        message: `Unbalanced stack: Register '${reg}' was popped ${Math.abs(count)} more time(s) than it was pushed.`,
-                        source: 'RISC-V LSP'
-                    });
-                }
-            }
-        }
-    }
-}
-
-function checkMemoryAlignment(instructions: ParsedInstruction[], diagnostics: Diagnostic[]) {
-    const memRegex = /^(-?\d+)\s*\(([^)]+)\)/; 
-    for (const inst of instructions) {
-        let requiredAlignment = 0;
-        if (['lw', 'sw'].includes(inst.mnemonic)) requiredAlignment = 4;
-        else if (['lh', 'lhu', 'sh'].includes(inst.mnemonic)) requiredAlignment = 2;
-
-        if (requiredAlignment > 0) {
-            const memOp = inst.operands[inst.operands.length - 1];
-            if (!memOp) continue; 
-
-            const match = memOp.match(memRegex);
-            if (match && match[1]) {
-                const offset = parseInt(match[1]);
-                if (!isNaN(offset) && offset % requiredAlignment !== 0) {
-                    diagnostics.push({
-                        severity: DiagnosticSeverity.Warning,
-                        range: { start: { line: inst.line, character: inst.raw.indexOf(memOp) }, end: { line: inst.line, character: inst.raw.indexOf(memOp) + memOp.length } },
-                        message: `Misaligned memory access: Offset ${offset} is not a multiple of ${requiredAlignment} for '${inst.mnemonic}'.`,
-                        source: 'RISC-V LSP'
-                    });
-                }
-            }
-        }
-    }
-}
-
-function checkLabelResolution(jumpTargets: { label: string, line: number, range: any }[], labels: Map<string, ParsedLabel>, diagnostics: Diagnostic[]) {
-    for (const target of jumpTargets) {
-        if (/^\d+$/.test(target.label)) continue;
-
-        if (!labels.has(target.label)) {
-            diagnostics.push({
-                severity: DiagnosticSeverity.Error,
-                range: target.range,
-                message: `RISC-V Undefined label: '${target.label}'`,
-                source: 'RISC-V LSP'
-            });
-        }
-    }
-}
