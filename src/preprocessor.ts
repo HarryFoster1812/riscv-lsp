@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { ParsedLabel } from './types';
-import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, standaloneMnemonics } from './constants';
+import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, standaloneMnemonics, knownInstructions} from './constants';
 
 export function extractIncludedLabels(filePath: string, labels: Map<string, ParsedLabel>, visited: Set<string>) {
     if (!fs.existsSync(filePath) || visited.has(filePath)) return;
@@ -76,11 +76,26 @@ export function extractIncludedLabels(filePath: string, labels: Map<string, Pars
             }
 
             // --- 4. Extract Standard Labels ---
-            const labelMatch = line.match(labelRegex);
-            if (labelMatch && labelMatch[1] && !standaloneMnemonics.includes(labelMatch[1].toLowerCase())) {
-                if (!labels.has(labelMatch[1])) {
-                    labels.set(labelMatch[1], { 
-                        name: labelMatch[1], 
+            // --- 4. Extract Standard Labels ---
+            let labelMatch = line.match(labelRegex);
+            let extractedLabel = '';
+
+            if (labelMatch && labelMatch[1]) {
+                extractedLabel = labelMatch[1];
+            } else {
+                // Heuristic: If no colon, check for "WORD1 WORD2" where WORD2 is an instruction
+                const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/);
+                if (inlineMatch && inlineMatch[1] && inlineMatch[2]) {
+                    if (knownInstructions.has(inlineMatch[2].toLowerCase())) {
+                        extractedLabel = inlineMatch[1];
+                    }
+                }
+            }
+
+            if (extractedLabel && !standaloneMnemonics.includes(extractedLabel.toLowerCase())) {
+                if (!labels.has(extractedLabel)) {
+                    labels.set(extractedLabel, { 
+                        name: extractedLabel, 
                         line: lines.indexOf(line), 
                         uri: pathToFileURL(filePath).toString(),
                         type: 'label'

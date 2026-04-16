@@ -6,8 +6,10 @@ import { fileURLToPath } from 'url';
 
 // 1. Import our custom modules!
 import { ParsedInstruction, ParsedLabel, AnalysisResult } from './types';
-import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, instRegex, labelReferencingMnemonics, standaloneMnemonics, CSR_REGISTERS} from './constants';
-import { extractIncludedLabels } from './preprocessor';
+import { 
+    structRegex, structMemberRegex, includeRegex, defDirectiveRegex, 
+    labelRegex, instRegex, standaloneMnemonics, CSR_REGISTERS, knownInstructions 
+} from './constants';import { extractIncludedLabels } from './preprocessor';
 import { checkStackTracking } from './diagnostics/stackTracker';
 import { checkMemoryAlignment } from './diagnostics/memoryAlignment';
 import { checkLabelResolution } from './diagnostics/labelResolver';
@@ -158,29 +160,48 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
         }
         
         // --- 4. Extract Standard Labels ---
-        const labelMatch = line.match(labelRegex);
+        // --- 4. Extract Standard Labels ---
+        let labelMatch = line.match(labelRegex);
+        let extractedLabel = '';
+        let matchLength = 0;
+
         if (labelMatch && labelMatch[1]) {
-            const potentialLabel = labelMatch[1];
-            if (!standaloneMnemonics.includes(potentialLabel.toLowerCase())) {
-                if (!labels.has(potentialLabel)) {
-                    labels.set(potentialLabel, { 
-                        name: potentialLabel, 
+            // Standard colon or end-of-line label found
+            extractedLabel = labelMatch[1];
+            matchLength = labelMatch[0].length;
+        } else {
+            // Heuristic fallback for colon-less inline labels (e.g., "label add t0")
+            const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/);
+            if (inlineMatch && inlineMatch[1] && inlineMatch[2]) {
+                if (knownInstructions.has(inlineMatch[2].toLowerCase())) {
+                    extractedLabel = inlineMatch[1];
+                    // Slice the string exactly where the instruction begins!
+                    matchLength = line.indexOf(inlineMatch[2]);
+                }
+            }
+        }
+
+        if (extractedLabel) {
+            if (!standaloneMnemonics.includes(extractedLabel.toLowerCase())) {
+                if (!labels.has(extractedLabel)) {
+                    labels.set(extractedLabel, { 
+                        name: extractedLabel, 
                         line: i, 
                         uri: documentUri || '',
                         type: 'label'
                     });
                 } else {
-                     // FIXED: Push diagnostic instead of silently overwriting!
                     diagnostics.push({
                         severity: DiagnosticSeverity.Error,
-                        range: { start: { line: i, character: lines[i].indexOf(potentialLabel) }, end: { line: i, character: lines[i].indexOf(potentialLabel) + potentialLabel.length } },
-                        message: `Duplicate label: '${potentialLabel}' has already been defined.`,
+                        range: { start: { line: i, character: lines[i].indexOf(extractedLabel) }, end: { line: i, character: lines[i].indexOf(extractedLabel) + extractedLabel.length } },
+                        message: `Duplicate label: '${extractedLabel}' has already been defined.`,
                         source: 'RISC-V LSP'
                     });
                 }
-                line = line.substring(labelMatch[0].length); 
+                line = line.substring(matchLength); 
             }
         }
+
 
         // --- 5. Extract Instructions ---
         const instMatch = line.match(instRegex);
@@ -201,18 +222,18 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                 // Scan the entire operand string for valid tokens
                 // Scan the entire operand string for valid tokens
                 while ((tokenMatch = expTokenRegex.exec(operandStr)) !== null) {
-                    if (tokenMatch[5]) { // Group 5 specifically captures text identifiers (potential labels/registers)
+                    if (tokenMatch[5]) { // Group 5 captures text identifiers
                         const token = tokenMatch[5];
                         const tokenStartIdx = operandStartIdx + tokenMatch.index;
                         
-                        // Check if the token is just a standard RISC-V register
+                        // 1. Check if it's a standard RISC-V register
                         const isReg = /^x([0-9]|[1-2][0-9]|3[0-1])$/.test(token) || 
                                       /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/.test(token);
 
-                        // NEW: Check if the token is a hardware CSR
+                        // 2. Check if it's a hardware CSR
                         const isCsr = token.toLowerCase() in CSR_REGISTERS;
 
-                        // If it's NOT a register AND NOT a CSR, it must be a label, offset, or constant!
+                        // 3. If it's NOT a register AND NOT a CSR, it must be a label, offset, or constant!
                         if (!isReg && !isCsr) {
                             jumpTargets.push({ 
                                 label: token, 

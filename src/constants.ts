@@ -36,3 +36,17 @@ export const CSR_INSTRUCTIONS: Record<string, string> = {
     'csrrsi': 'Read and Set CSR bits using Immediate',
     'csrrci': 'Read and Clear CSR bits using Immediate'
 };
+export const knownInstructions = new Set([
+    'add', 'sub', 'xor', 'or', 'and', 'sll', 'srl', 'sra', 'slt', 'sltu',
+    'addi', 'xori', 'ori', 'andi', 'slli', 'srli', 'srai', 'slti', 'sltiu',
+    'mul', 'mulh', 'mulsu', 'mulu', 'div', 'divu', 'rem', 'remu',
+    'lb', 'lh', 'lw', 'lbu', 'lhu', 'sb', 'sh', 'sw',
+    'beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'jal', 'jalr',
+    'lui', 'auipc', 'ecall', 'ebreak',
+    'la', 'li', 'subi', 'nop', 'mv', 'not', 'neg',
+    'seqz', 'snez', 'sltz', 'sgtz',
+    'beqz', 'bnez', 'blez', 'bgez', 'bltz', 'bgtz',
+    'bgt', 'ble', 'bgtu', 'bleu',
+    'j', 'jr', 'ret', 'call', 'tail',
+    'csrrw', 'csrr', 'csrw', 'csrrs', 'csrs', 'csrrc', 'csrc', 'csrrwi', 'csrrsi', 'csrrci'
+]);
