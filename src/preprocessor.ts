@@ -84,7 +84,7 @@ export function extractIncludedLabels(filePath: string, labels: Map<string, Pars
                 extractedLabel = labelMatch[1];
             } else {
                 // Heuristic: If no colon, check for "WORD1 WORD2" where WORD2 is an instruction
-                const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/);
+                const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/i);
                 if (inlineMatch && inlineMatch[1] && inlineMatch[2]) {
                     if (knownInstructions.has(inlineMatch[2].toLowerCase())) {
                         extractedLabel = inlineMatch[1];

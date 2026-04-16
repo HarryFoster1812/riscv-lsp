@@ -171,7 +171,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
             matchLength = labelMatch[0].length;
         } else {
             // Heuristic fallback for colon-less inline labels (e.g., "label add t0")
-            const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/);
+            const inlineMatch = line.match(/^\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\s+([a-zA-Z0-9.]+)/i);
             if (inlineMatch && inlineMatch[1] && inlineMatch[2]) {
                 if (knownInstructions.has(inlineMatch[2].toLowerCase())) {
                     extractedLabel = inlineMatch[1];
@@ -214,8 +214,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
 
             if (operandStr) {
                 // A fresh regex instance prevents /g state leaks between lines
-                const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-fA-F_]+\b|\$[0-9a-fA-F_]+\b|\b0b[01_]+\b|:[01_]+\b|@[0-7_]+\b)|(\b\d[\d_]*\b)|([a-zA-Z_.][a-zA-Z0-9_.]*)/g;
-                
+                const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-f_]+\b|\$[0-9a-f_]+\b|\b0b[01_]+\b|:[01_]+\b|@[0-7_]+\b)|(\b\d[\d_]*\b)|([a-z_.][a-z0-9_.]*)/gi;                
                 let tokenMatch;
                 const operandStartIdx = lines[i].indexOf(operandStr);
 
@@ -228,7 +227,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                         
                         // 1. Check if it's a standard RISC-V register
                         const isReg = /^x([0-9]|[1-2][0-9]|3[0-1])$/.test(token) || 
-                                      /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/.test(token);
+                                      /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/i.test(token);
 
                         // 2. Check if it's a hardware CSR
                         const isCsr = token.toLowerCase() in CSR_REGISTERS;

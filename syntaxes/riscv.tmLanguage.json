@@ -17,7 +17,7 @@
   ],
   "repository": {
     "includes":{
-      "match": "^\\s*(include)\\s+([^#;\\s]+)",
+      "match": "^\\s*(?i:include)\\s+([^#;\\s]+)",
       "captures": {
         "1": { "name": "keyword.control.import.riscv" },
         "2": { "name": "string.unquoted.riscv" }
@@ -46,7 +46,7 @@
     "labels": {
       "patterns": [
         {
-          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\\s+(defw|defb|defs|(?i:equ)|(?i:word)|(?i:alias))\\b",
+          "match": "^\\s*([a-zA-Z_.][a-zA-Z0-9_.]*)\\s+(?i:defw|defb|defs|(?i:equ)|(?i:word)|(?i:alias))\\b",
           "captures": {
             "1": { "name": "entity.name.function.riscv" },
             "2": { "name": "storage.type.riscv" }
@@ -68,7 +68,7 @@
           }
         },
         {
-          "match": "^\\s*(struct)\\b",
+          "match": "^\\s*(?i:struct)\\b",
           "name": "storage.type.struct.riscv"
         }
       ]
