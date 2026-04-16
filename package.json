@@ -7,7 +7,7 @@
     "url": "https://github.com/V-Stojkovic/riscv-lsp"
   },
   "icon": "images/icon.png",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "LSP and language support for RISC-V assembly",
   "main": "./out/client.js",
   "engines": {
