@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 
 // 1. Import our custom modules!
 import { ParsedInstruction, ParsedLabel, AnalysisResult } from './types';
-import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, instRegex, labelReferencingMnemonics, standaloneMnemonics } from './constants';
+import { structRegex, structMemberRegex, includeRegex, defDirectiveRegex, labelRegex, instRegex, labelReferencingMnemonics, standaloneMnemonics, CSR_REGISTERS} from './constants';
 import { extractIncludedLabels } from './preprocessor';
 import { checkStackTracking } from './diagnostics/stackTracker';
 import { checkMemoryAlignment } from './diagnostics/memoryAlignment';
@@ -122,7 +122,6 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                     type: isEqu ? 'constant' : 'label'
                 });
             } else {
-                // FIXED: Push diagnostic instead of silently overwriting!
                 diagnostics.push({
                     severity: DiagnosticSeverity.Error,
                     range: { start: { line: i, character: lines[i].indexOf(potentialLabel) }, end: { line: i, character: lines[i].indexOf(potentialLabel) + potentialLabel.length } },
@@ -142,13 +141,17 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                     
                     const isReg = /^x([0-9]|[1-2][0-9]|3[0-1])$/.test(token) || 
                                   /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/.test(token);
-
-                    if (!isReg) {
-                        jumpTargets.push({
-                            label: token, line: i,
-                            range: { start: { line: i, character: tokenStartIdx }, end: { line: i, character: tokenStartIdx + token.length } }
-                        });
-                    }
+                    const isCsr = token.toLowerCase() in CSR_REGISTERS;
+                    if (!isReg && !isCsr) {
+                            jumpTargets.push({ 
+                                label: token, 
+                                line: i,
+                                range: { 
+                                    start: { line: i, character: tokenStartIdx }, 
+                                    end: { line: i, character: tokenStartIdx + token.length } 
+                                }
+                            });
+                        }
                 }
             }
             continue; 
@@ -180,7 +183,6 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
         }
 
         // --- 5. Extract Instructions ---
-        // --- 5. Extract Instructions ---
         const instMatch = line.match(instRegex);
         if (instMatch && instMatch[1]) {
             const mnemonic = instMatch[1].toLowerCase();
@@ -197,6 +199,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                 const operandStartIdx = lines[i].indexOf(operandStr);
 
                 // Scan the entire operand string for valid tokens
+                // Scan the entire operand string for valid tokens
                 while ((tokenMatch = expTokenRegex.exec(operandStr)) !== null) {
                     if (tokenMatch[5]) { // Group 5 specifically captures text identifiers (potential labels/registers)
                         const token = tokenMatch[5];
@@ -206,8 +209,11 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
                         const isReg = /^x([0-9]|[1-2][0-9]|3[0-1])$/.test(token) || 
                                       /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/.test(token);
 
-                        // If it's NOT a register, it must be a label, offset, or constant!
-                        if (!isReg) {
+                        // NEW: Check if the token is a hardware CSR
+                        const isCsr = token.toLowerCase() in CSR_REGISTERS;
+
+                        // If it's NOT a register AND NOT a CSR, it must be a label, offset, or constant!
+                        if (!isReg && !isCsr) {
                             jumpTargets.push({ 
                                 label: token, 
                                 line: i,

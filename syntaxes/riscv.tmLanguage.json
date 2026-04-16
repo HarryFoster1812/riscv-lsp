@@ -11,7 +11,9 @@
     { "include": "#numbers" },
     { "include": "#operators" },
     { "include": "#brackets" },
-    { "include": "#variables" }
+    { "include": "#variables" },
+    { "include": "#csrs"},
+    { "include": "#csr_instructions"}
   ],
   "repository": {
     "includes":{
@@ -72,7 +74,7 @@
       ]
     },
     "instructions": {
-      "match": "\\b(add|sub|subi|xor|or|and|sll|srl|sra|slt|sltu|addi|xori|ori|andi|slli|srli|srai|slti|sltiu|mul|mulh|mulsu|mulu|div|divu|rem|remu|lb|lh|lw|ld|lbu|lhu|sb|sh|sw|sd|lui|auipc|ecall|ebreak|la|li|mv|not|neg|seqz|snez|sltz|sgtz|blez|bgez|bltz|bgtz|bgt|ble|bgtu|bleu|jr|jalr|ret|nop)\\b",
+      "match": "\\b(add|sub|subi|xor|or|and|sll|srl|sra|slt|sltu|addi|xori|ori|andi|slli|srli|srai|slti|sltiu|mul|mulh|mulsu|mulu|div|divu|rem|remu|lb|lh|lw|ld|lbu|lhu|sb|sh|sw|sd|lui|auipc|ecall|ebreak|la|li|mv|not|neg|seqz|snez|sltz|sgtz|blez|bgez|bltz|bgtz|bgt|ble|bgtu|bleu|jr|jalr|ret|nop|mret)\\b",
       "name": "keyword.control.riscv"
     },
     "registers": {
@@ -94,6 +96,14 @@
     "variables": {
       "match": "\\b[a-zA-Z_.][a-zA-Z0-9_.]*\\b",
       "name": "variable.parameter.riscv"
+    },
+    "csrs": {
+      "match": "\\b(?i:mstatus|misa|mie|mtvec|mscratch|mepc|mcause|mtval|mip|cycle|time|instret|cycleh|timeh|instreth)\\b",
+      "name": "variable.language.register.csr.riscv"
+    },
+    "csr_instructions": {
+      "match": "\\b(?i:csrrw|csrw|csrr|csrs|csrc|csrrs|csrrc|csrrwi|csrrsi|csrrci)\\b",
+      "name": "keyword.control.instruction.csr.riscv"
     }
   }
 }

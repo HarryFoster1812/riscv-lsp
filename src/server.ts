@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { analyzeText } from './analyzer';
 import { ParsedLabel} from './types'
+import { CSR_REGISTERS,CSR_INSTRUCTIONS } from './constants';
 
 const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
@@ -62,6 +63,26 @@ connection.onHover((params): Hover | null => {
 
     const word = getWordAtPosition(document, params.position);
     if (!word) return null;
+    const lowerWord = word.toLowerCase();
+
+    // 1. Check if the word is a CSR Instruction
+    if (lowerWord in CSR_INSTRUCTIONS) {
+        return {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: `\`\`\`riscv\n(instruction) ${lowerWord.toUpperCase()}\n\`\`\`\n*${CSR_INSTRUCTIONS[lowerWord]}*`
+            }
+        };
+    }
+    if (lowerWord in CSR_REGISTERS) {
+        const csr = CSR_REGISTERS[lowerWord];
+        return {
+            contents: {
+                kind: MarkupKind.Markdown,
+                value: `\`\`\`riscv\n(CSR) ${word.toUpperCase()} [${csr.address}]\n\`\`\`\n*${csr.description}*`
+            }
+        };
+    }
 
     const fileLabels = documentLabelsCache.get(params.textDocument.uri);
     if (!fileLabels) return null;
