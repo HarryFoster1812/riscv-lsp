@@ -180,6 +180,7 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
         }
 
         // --- 5. Extract Instructions ---
+        // --- 5. Extract Instructions ---
         const instMatch = line.match(instRegex);
         if (instMatch && instMatch[1]) {
             const mnemonic = instMatch[1].toLowerCase();
@@ -188,20 +189,35 @@ export function analyzeText(text: string, documentUri?: string): AnalysisResult 
             
             instructions.push({ line: i, mnemonic, operands, raw: line });
 
-            const labelReferencingMnemonics = ['jal', 'j', 'beq', 'bne', 'blt', 'bge', 'bltu', 'bgeu', 'call', 'beqz', 'bnez', 'tail', 'la','li'];
-            if (labelReferencingMnemonics.includes(mnemonic)) {
-                const targetLabel = operands[operands.length - 1];
-                const isNumber = /^(0x[0-9a-fA-F_]+|\$[0-9a-fA-F_]+|0b[01_]+|:[01_]+|@[0-7_]+|-?\d[\d_]*)$/i.test(targetLabel);
+            if (operandStr) {
+                // A fresh regex instance prevents /g state leaks between lines
+                const expTokenRegex = /("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|(\b0x[0-9a-fA-F_]+\b|\$[0-9a-fA-F_]+\b|\b0b[01_]+\b|:[01_]+\b|@[0-7_]+\b)|(\b\d[\d_]*\b)|([a-zA-Z_.][a-zA-Z0-9_.]*)/g;
                 
-                if (!isNumber) {
-                    jumpTargets.push({ 
-                        label: targetLabel, 
-                        line: i,
-                        range: { 
-                            start: { line: i, character: lines[i].indexOf(targetLabel) }, 
-                            end: { line: i, character: lines[i].indexOf(targetLabel) + targetLabel.length } 
+                let tokenMatch;
+                const operandStartIdx = lines[i].indexOf(operandStr);
+
+                // Scan the entire operand string for valid tokens
+                while ((tokenMatch = expTokenRegex.exec(operandStr)) !== null) {
+                    if (tokenMatch[5]) { // Group 5 specifically captures text identifiers (potential labels/registers)
+                        const token = tokenMatch[5];
+                        const tokenStartIdx = operandStartIdx + tokenMatch.index;
+                        
+                        // Check if the token is just a standard RISC-V register
+                        const isReg = /^x([0-9]|[1-2][0-9]|3[0-1])$/.test(token) || 
+                                      /^(zero|ra|sp|gp|tp|t[0-6]|s[0-9]|s1[0-1]|a[0-7])$/.test(token);
+
+                        // If it's NOT a register, it must be a label, offset, or constant!
+                        if (!isReg) {
+                            jumpTargets.push({ 
+                                label: token, 
+                                line: i,
+                                range: { 
+                                    start: { line: i, character: tokenStartIdx }, 
+                                    end: { line: i, character: tokenStartIdx + token.length } 
+                                }
+                            });
                         }
-                    });
+                    }
                 }
             }
         }
