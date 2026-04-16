@@ -4,8 +4,18 @@ All notable changes to the "RISC-V LSP" extension will be documented in this fil
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-
+## [1.2.5]
+### Added
+- **CSR support** includes syntax highlighting and error highlighting for CSRs and their respective access instructions
+## [1.2.4]
+### Fixed
+- **Label arithmetic** arithmetic between labels,constants and offsets no longer erroneously highligths as an error
+## [1.2.3]
+### Fixed
+- **Struct highlighting** hovering over a struct and its members correctly shows the values
+## [1.2.2]
+### Added 
+- **Structs** added support for structs
 ## [1.2.1] - 2026-03-31
 
 ### Added
