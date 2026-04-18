@@ -1,6 +1,6 @@
 import {
     createConnection, TextDocuments, ProposedFeatures, TextDocumentSyncKind, InitializeParams, InitializeResult,
-    Hover, MarkupKind, Location, Position
+    Hover, MarkupKind, Location, Position, StreamMessageReader, StreamMessageWriter
 } from 'vscode-languageserver/node';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,7 +9,11 @@ import { analyzeText } from './analyzer';
 import { ParsedLabel} from './types'
 import { CSR_REGISTERS,CSR_INSTRUCTIONS } from './constants';
 
-const connection = createConnection(ProposedFeatures.all);
+const connection = createConnection(
+  ProposedFeatures.all,
+  new StreamMessageReader(process.stdin),
+  new StreamMessageWriter(process.stdout)
+);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // SWE Pro-Tip: Map the labels to the specific file URI so multi-tab setups don't overwrite each other!
